@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garfield's Lasagna & Mouse Hunt</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Fredoka+One&family=Quicksand:wght@600;800&display=swap" rel="stylesheet">
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            font-family: 'Quicksand', sans-serif;
+        }
+        .font-comic {
+            font-family: 'Bangers', cursive;
+            letter-spacing: 0.05em;
+        }
+        .font-game {
+            font-family: 'Fredoka One', cursive;
+        }
+        .comic-border {
+            border: 4px solid #1e1b4b;
+            box-shadow: 6px 6px 0px #1e1b4b;
+        }
+        .comic-border-sm {
+            border: 3px solid #1e1b4b;
+            box-shadow: 4px 4px 0px #1e1b4b;
+        }
+        .glass-comic {
+            background: rgba(255, 251, 235, 0.92);
+            backdrop-filter: blur(8px);
+        }
+        .glass-dark {
+            background: rgba(30, 27, 75, 0.88);
+            backdrop-filter: blur(8px);
+        }
+        canvas {
+            touch-action: none;
+        }
+        .btn-bounce {
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+        .btn-bounce:active {
+            transform: translate(2px, 2px) scale(0.96);
+            box-shadow: 2px 2px 0px #1e1b4b !important;
+        }
+        .fever-glow {
+            animation: feverPulse 0.6s infinite alternate;
+        }
+        @keyframes feverPulse {
+            from { box-shadow: 0 0 15px #f59e0b, inset 0 0 15px #f59e0b; }
+            to { box-shadow: 0 0 35px #ef4444, inset 0 0 25px #ef4444; }
+        }
+    </style>
+</head>
+<body class="bg-amber-100 text-slate-900 flex items-center justify-center min-h-screen p-2 md:p-4 overflow-hidden select-none">
+
+    <!-- Main Outer Container / Comic Frame -->
+    <div id="game-container" class="relative w-full max-w-xl h-[92vh] max-h-[850px] bg-amber-400 rounded-3xl comic-border overflow-hidden flex flex-col transition-all duration-300">
+        
+        <!-- HUD / Top Bar -->
+        <div class="absolute top-0 left-0 right-0 z-10 p-3 flex justify-between items-center pointer-events-none">
+            <!-- Left Stats: Hearts & Score -->
+            <div class="flex items-center space-x-2 pointer-events-auto">
+                <div class="bg-amber-100 px-3 py-1.5 rounded-2xl comic-border-sm flex items-center space-x-1">
+                    <span id="hearts-display" class="text-xl">❤️‍🔥❤️‍🔥❤️‍🔥</span>
+                </div>
+                <div class="bg-amber-100 px-3 py-1 rounded-2xl comic-border-sm flex flex-col">
+                    <span class="text-[10px] font-bold text-amber-800 uppercase tracking-wider block -mb-1">Score</span>
+                    <span id="score-display" class="font-comic text-2xl text-slate-900 leading-none">0</span>
+                </div>
+            </div>
+
+            <!-- Right Controls & Combo -->
+            <div class="flex items-center space-x-2 pointer-events-auto">
+                <div id="combo-badge" class="hidden bg-orange-500 text-white px-3 py-1 rounded-2xl comic-border-sm font-comic text-xl animate-bounce">
+                    x<span id="combo-val">1</span>
+                </div>
+                <button id="sound-btn" class="bg-amber-100 w-10 h-10 rounded-2xl comic-border-sm flex items-center justify-center text-xl btn-bounce">
+                    🔊
+                </button>
+                <button id="pause-btn" class="bg-amber-100 w-10 h-10 rounded-2xl comic-border-sm flex items-center justify-center text-xl font-bold btn-bounce">
+                    ⏸️
+                </button>
+            </div>
+        </div>
+
+        <!-- Lasagna Power Gauge Bar -->
+        <div class="absolute top-16 left-3 right-3 z-10 pointer-events-none">
+            <div class="bg-slate-900 h-4 rounded-full comic-border-sm overflow-hidden p-0.5">
+                <div id="lasagna-gauge" class="bg-gradient-to-r from-amber-500 via-orange-500 to-red-500 h-full w-0% rounded-full transition-all duration-200"></div>
+            </div>
+            <div id="fever-text" class="hidden text-center font-comic text-xs text-red-600 font-extrabold tracking-widest drop-shadow -mt-0.5 animate-pulse">
+                🔥 LASAGNA FEVER MODE! DOUBLE POINTS! 🔥
+            </div>
+        </div>
+
+        <!-- Game Canvas -->
+        <canvas id="gameCanvas" class="w-full h-full block flex-grow cursor-pointer"></canvas>
+
+        <!-- On-Screen Controls for Mobile/Touch -->
+        <div class="absolute bottom-4 left-0 right-0 z-10 px-6 flex justify-between pointer-events-none md:hidden">
+            <button id="btn-left" class="pointer-events-auto w-16 h-16 bg-amber-100 rounded-2xl comic-border-sm flex items-center justify-center text-3xl active:bg-amber-300 btn-bounce">
+                👈
+            </button>
+            <button id="btn-right" class="pointer-events-auto w-16 h-16 bg-amber-100 rounded-2xl comic-border-sm flex items-center justify-center text-3xl active:bg-amber-300 btn-bounce">
+                👉
+            </button>
+        </div>
+
+        <!-- OVERLAY: Start Menu -->
+        <div id="start-menu" class="absolute inset-0 z-20 glass-dark flex flex-col items-center justify-between p-6 text-center text-white">
+            <div class="mt-4">
+                <div class="text-6xl mb-1 animate-bounce">🐱</div>
+                <h1 class="font-comic text-5xl md:text-6xl text-amber-400 tracking-wider drop-shadow-[0_4px_0_#1e1b4b]">GARFIELD'S</h1>
+                <p class="font-game text-xl text-orange-300 -mt-2">Mouse & Lasagna Madness!</p>
+            </div>
+
+            <!-- Instructions & Legend -->
+            <div class="glass-comic p-4 rounded-3xl comic-border-sm text-slate-900 w-full max-w-sm text-sm space-y-2 text-left shadow-2xl">
+                <div class="font-comic text-2xl text-center border-b-2 border-slate-900 pb-1 text-orange-600">HOW TO PLAY</div>
+                <div class="grid grid-cols-2 gap-2 text-xs font-semibold">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl">🐭</span> <span>Mouse (+10)</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl">✨</span> <span>Speedy Mouse (+25)</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl">🍕</span> <span>Lasagna (+Power)</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl">⏰</span> <span>Clock (-1 Life)</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl">🕷️</span> <span>Spider (-1 Life)</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl">🤢</span> <span>Spoiled Food (-Pts)</span>
+                    </div>
+                </div>
+                <p class="text-[11px] text-center text-slate-700 pt-1 border-t border-slate-300 font-bold">Use ⬅️ ➡️ Keys, A/D, or Tap/Drag on screen!</p>
+            </div>
+
+            <!-- Start Button & High Score -->
+            <div class="w-full max-w-xs space-y-3 mb-2">
+                <div class="text-sm font-bold text-amber-200">
+                    🏆 BEST SCORE: <span id="start-highscore" class="font-comic text-2xl text-amber-400">0</span>
+                </div>
+                <button id="start-btn" class="w-full py-3.5 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-400 hover:to-amber-400 text-white font-comic text-3xl rounded-2xl comic-border btn-bounce">
+                    START HUNTING!
+                </button>
+            </div>
+        </div>
+
+        <!-- OVERLAY: Pause Menu -->
+        <div id="pause-menu" class="hidden absolute inset-0 z-20 glass-dark flex flex-col items-center justify-center p-6 text-center text-white">
+            <h2 class="font-comic text-5xl text-amber-400 mb-6 drop-shadow-[0_3px_0_#000]">NAP TIME! (PAUSED)</h2>
+            <div class="space-y-4 w-52">
+                <button id="resume-btn" class="w-full py-3 bg-amber-400 text-slate-900 font-comic text-2xl rounded-2xl comic-border btn-bounce">
+                    RESUME
+                </button>
+                <button id="restart-pause-btn" class="w-full py-3 bg-slate-700 text-white font-comic text-2xl rounded-2xl comic-border btn-bounce">
+                    RESTART
+                </button>
+            </div>
+        </div>
+
+        <!-- OVERLAY: Game Over Screen -->
+        <div id="gameover-menu" class="hidden absolute inset-0 z-20 glass-dark flex flex-col items-center justify-center p-6 text-center text-white">
+            <div class="text-6xl mb-2">🙀</div>
+            <h2 class="font-comic text-5xl text-rose-500 mb-1 drop-shadow-[0_3px_0_#000]">OUT OF LIVES!</h2>
+            <p id="rank-badge" class="font-comic text-2xl text-amber-300 mb-4">Lazy Kitten</p>
+
+            <div class="glass-comic p-4 rounded-3xl comic-border text-slate-900 w-full max-w-xs space-y-2 mb-6">
+                <div class="flex justify-between items-center">
+                    <span class="font-bold text-slate-600">Final Score:</span>
+                    <span id="final-score" class="font-comic text-3xl text-orange-600">0</span>
+                </div>
+                <div class="flex justify-between items-center border-t border-slate-300 pt-2">
+                    <span class="font-bold text-slate-600">High Score:</span>
+                    <span id="final-highscore" class="font-comic text-2xl text-amber-600">0</span>
+                </div>
+            </div>
+
+            <button id="restart-btn" class="w-full max-w-xs py-3.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white font-comic text-3xl rounded-2xl comic-border btn-bounce">
+                TRY AGAIN
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Web Audio Synthesizer & Complete Game Logic -->
+    <script>
+        // --- WEB AUDIO SYNTHESIZER ---
+        class GarfieldAudio {
+            constructor() {
+                this.ctx = null;
+                this.muted = false;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playCatchMouse() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(350, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(700, this.ctx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            }
+
+            playLasagnaPower() {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(261.63, now); // C4
+                osc.frequency.setValueAtTime(329.63, now + 0.08); // E4
+                osc.frequency.setValueAtTime(392.00, now + 0.16); // G4
+                osc.frequency.setValueAtTime(523.25, now + 0.24); // C5
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.4);
+            }
+
+            playHitHazard() {
+                if (this.muted || !this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(45, this.ctx.currentTime + 0.25);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.25);
+            }
+
+            playFeverTrigger() {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.exponentialRampToValueAtTime(880, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.3);
+            }
+
+            playGameOver() {
+                if (this.muted || !this.ctx) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.linearRampToValueAtTime(200, now + 0.2);
+                osc.frequency.linearRampToValueAtTime(120, now + 0.5);
+                osc.frequency.linearRampToValueAtTime(60, now + 0.8);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(now + 0.8);
+            }
+        }
+
+        const sfx = new GarfieldAudio();
+
+        // --- CANVAS & GAME ENGINE SETUP ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+
+        let width = 0;
+        let height = 0;
+
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            width = rect.width;
+            height = rect.height;
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+
+        // State variables
+        let gameState = 'START'; // START, PLAYING, PAUSED, GAMEOVER
+        let score = 0;
+        let highScore = parseInt(localStorage.getItem('garfield_highscore') || '0');
+        let lives = 3;
+        let combo = 0;
+        let lasagnaGauge = 0; // 0 to 100
+        let isFeverMode = false;
+        let feverTimer = 0; // frames remaining
+        let spawnTimer = 0;
+        let spawnInterval = 50;
+
+        // Item Configurations
+        const ITEMS = {
+            MOUSE:        { type: 'mouse', symbol: '🐭', pts: 10, hazard: false, speed: 2.8, size: 34 },
+            GOLD_MOUSE:   { type: 'gold_mouse', symbol: '✨🐭', pts: 25, hazard: false, speed: 4.2, size: 34 },
+            LASAGNA:      { type: 'lasagna', symbol: '🍕', pts: 50, hazard: false, speed: 3.2, size: 36, lasagnaGain: 35 },
+            CLOCK:        { type: 'clock', symbol: '⏰', pts: 0, hazard: true, speed: 3.5, size: 34, damage: 1 },
+            SPIDER:       { type: 'spider', symbol: '🕷️', pts: 0, hazard: true, speed: 3.0, size: 34, damage: 1 },
+            SPOILED_FOOD: { type: 'spoiled', symbol: '🤢', pts: -15, hazard: true, speed: 2.6, size: 34, damage: 0 }
+        };
+
+        // Player (Garfield)
+        let garfield = {
+            x: 0,
+            y: 0,
+            width: 70,
+            height: 60,
+            vx: 0,
+            speed: 1.1,
+            friction: 0.82,
+            face: '😸',
+            direction: 1 // 1 for right, -1 for left
+        };
+
+        let activeItems = [];
+        let particles = [];
+        let floatingTexts = [];
+        let kitchenTiles = [];
+
+        // Input Tracking
+        const keys = { left: false, right: false };
+
+        // --- GAME INITIALIZATION & RESET ---
+        function initGame() {
+            resizeCanvas();
+            score = 0;
+            lives = 3;
+            combo = 0;
+            lasagnaGauge = 0;
+            isFeverMode = false;
+            feverTimer = 0;
+            spawnInterval = 50;
+            activeItems = [];
+            particles = [];
+            floatingTexts = [];
+
+            garfield.x = width / 2;
+            garfield.y = height - 55;
+            garfield.vx = 0;
+            garfield.face = '😸';
+
+            // Tile pattern background generator
+            kitchenTiles = [];
+            for (let x = 0; x < width + 40; x += 40) {
+                for (let y = 0; y < height + 40; y += 40) {
+                    kitchenTiles.push({ x, y });
+                }
+            }
+
+            updateHUD();
+        }
+
+        function updateHUD() {
+            document.getElementById('score-display').innerText = score;
+            document.getElementById('hearts-display').innerText = '❤️‍🔥'.repeat(Math.max(0, lives));
+            
+            // Combo badge
+            const comboBadge = document.getElementById('combo-badge');
+            if (combo > 1) {
+                comboBadge.classList.remove('hidden');
+                document.getElementById('combo-val').innerText = combo;
+            } else {
+                comboBadge.classList.add('hidden');
+            }
+
+            // Lasagna Gauge
+            const gaugeEl = document.getElementById('lasagna-gauge');
+            gaugeEl.style.width = `${Math.min(100, lasagnaGauge)}%`;
+
+            const feverText = document.getElementById('fever-text');
+            if (isFeverMode) {
+                gameContainer.classList.add('fever-glow');
+                feverText.classList.remove('hidden');
+            } else {
+                gameContainer.classList.remove('fever-glow');
+                feverText.classList.add('hidden');
+            }
+        }
+
+        // --- CONTROLS LISTENERS ---
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            if (e.key === 'p' || e.key === 'P' || e.key === 'Escape') togglePause();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+        });
+
+        // Touch control buttons
+        const btnLeft = document.getElementById('btn-left');
+        const btnRight = document.getElementById('btn-right');
+
+        const bindTouch = (elem, key) => {
+            elem.addEventListener('touchstart', (e) => { e.preventDefault(); keys[key] = true; });
+            elem.addEventListener('touchend', (e) => { e.preventDefault(); keys[key] = false; });
+            elem.addEventListener('mousedown', () => { keys[key] = true; });
+            elem.addEventListener('mouseup', () => { keys[key] = false; });
+        };
+        bindTouch(btnLeft, 'left');
+        bindTouch(btnRight, 'right');
+
+        // Canvas drag/tap movement
+        let isDragging = false;
+        canvas.addEventListener('pointerdown', (e) => {
+            isDragging = true;
+            moveGarfieldTo(e.clientX);
+        });
+        canvas.addEventListener('pointermove', (e) => {
+            if (isDragging) moveGarfieldTo(e.clientX);
+        });
+        window.addEventListener('pointerup', () => isDragging = false);
+
+        function moveGarfieldTo(clientX) {
+            if (gameState !== 'PLAYING') return;
+            const rect = canvas.getBoundingClientRect();
+            const targetX = clientX - rect.left;
+            garfield.vx += (targetX - garfield.x) * 0.18;
+        }
+
+        // --- OVERLAY & MENU HANDLERS ---
+        document.getElementById('start-highscore').innerText = highScore;
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            sfx.init();
+            document.getElementById('start-menu').classList.add('hidden');
+            gameState = 'PLAYING';
+            initGame();
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            document.getElementById('gameover-menu').classList.add('hidden');
+            gameState = 'PLAYING';
+            initGame();
+        });
+
+        document.getElementById('restart-pause-btn').addEventListener('click', () => {
+            document.getElementById('pause-menu').classList.add('hidden');
+            gameState = 'PLAYING';
+            initGame();
+        });
+
+        document.getElementById('pause-btn').addEventListener('click', () => togglePause());
+        document.getElementById('resume-btn').addEventListener('click', () => togglePause());
+
+        function togglePause() {
+            if (gameState === 'PLAYING') {
+                gameState = 'PAUSED';
+                document.getElementById('pause-menu').classList.remove('hidden');
+            } else if (gameState === 'PAUSED') {
+                gameState = 'PLAYING';
+                document.getElementById('pause-menu').classList.add('hidden');
+            }
+        }
+
+        const soundBtn = document.getElementById('sound-btn');
+        soundBtn.addEventListener('click', () => {
+            sfx.init();
+            sfx.muted = !sfx.muted;
+            soundBtn.innerText = sfx.muted ? '🔇' : '🔊';
+        });
+
+        // --- SPAWNING SYSTEM ---
+        function spawnItem() {
+            const rand = Math.random();
+            let config = ITEMS.MOUSE;
+
+            if (rand < 0.38) {
+                config = ITEMS.MOUSE;
+            } else if (rand < 0.52) {
+                config = ITEMS.GOLD_MOUSE;
+            } else if (rand < 0.68) {
+                config = ITEMS.LASAGNA;
+            } else if (rand < 0.82) {
+                config = ITEMS.CLOCK;
+            } else if (rand < 0.92) {
+                config = ITEMS.SPIDER;
+            } else {
+                config = ITEMS.SPOILED_FOOD;
+            }
+
+            const speedMultiplier = 1 + (score / 400); // Speed scales gradually
+            activeItems.push({
+                x: Math.random() * (width - 60) + 30,
+                y: -30,
+                speedY: config.speed * speedMultiplier + (Math.random() * 0.5),
+                rotation: 0,
+                rotSpeed: (Math.random() - 0.5) * 0.06,
+                ...config
+            });
+        }
+
+        // --- VISUAL EFFECTS ---
+        function triggerParticles(x, y, color, count = 12) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x, y,
+                    vx: (Math.random() - 0.5) * 7,
+                    vy: (Math.random() - 0.5) * 7,
+                    size: Math.random() * 8 + 3,
+                    color,
+                    alpha: 1,
+                    life: 0.04 + Math.random() * 0.03
+                });
+            }
+        }
+
+        function triggerFloatingText(x, y, text, color = '#f59e0b') {
+            floatingTexts.push({
+                x, y, text, color,
+                alpha: 1,
+                vy: -2
+            });
+        }
+
+        function triggerLasagnaFever() {
+            isFeverMode = true;
+            feverTimer = 300; // ~5 seconds at 60fps
+            lasagnaGauge = 100;
+            sfx.playFeverTrigger();
+            triggerFloatingText(garfield.x, garfield.y - 40, 'LASAGNA FEVER! 🔥', '#ef4444');
+            updateHUD();
+        }
+
+        function gameOver() {
+            gameState = 'GAMEOVER';
+            sfx.playGameOver();
+
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('garfield_highscore', highScore.toString());
+            }
+
+            document.getElementById('final-score').innerText = score;
+            document.getElementById('final-highscore').innerText = highScore;
+
+            // Garfield Rank Titles
+            let rank = "Lazy Kitten 🐾";
+            if (score >= 400) rank = "Lasagna Overlord! 👑🍕";
+            else if (score >= 250) rank = "Master Mouse Hunter 😼";
+            else if (score >= 120) rank = "Sassy Tom 🐱";
+            document.getElementById('rank-badge').innerText = rank;
+
+            document.getElementById('gameover-menu').classList.remove('hidden');
+        }
+
+        // --- GAME UPDATE LOOP ---
+        function update() {
+            if (gameState !== 'PLAYING') return;
+
+            // Fever Mode Timer
+            if (isFeverMode) {
+                feverTimer--;
+                lasagnaGauge = (feverTimer / 300) * 100;
+                if (feverTimer <= 0) {
+                    isFeverMode = false;
+                    lasagnaGauge = 0;
+                }
+                updateHUD();
+            }
+
+            // Item Spawning
+            spawnTimer++;
+            if (spawnTimer >= spawnInterval) {
+                spawnItem();
+                spawnTimer = 0;
+            }
+
+            // Garfield Movement
+            if (keys.left) {
+                garfield.vx -= garfield.speed;
+                garfield.direction = -1;
+            }
+            if (keys.right) {
+                garfield.vx += garfield.speed;
+                garfield.direction = 1;
+            }
+
+            garfield.vx *= garfield.friction;
+            garfield.x += garfield.vx;
+
+            // Boundaries
+            const margin = garfield.width / 2;
+            if (garfield.x < margin) { garfield.x = margin; garfield.vx = 0; }
+            if (garfield.x > width - margin) { garfield.x = width - margin; garfield.vx = 0; }
+
+            // Items Update & Collisions
+            for (let i = activeItems.length - 1; i >= 0; i--) {
+                const item = activeItems[i];
+                item.y += item.speedY;
+                item.rotation += item.rotSpeed;
+
+                // Collision Detection with Garfield
+                const dx = item.x - garfield.x;
+                const dy = item.y - (garfield.y - 10);
+                const dist = Math.hypot(dx, dy);
+
+                if (dist < (garfield.width / 2 + item.size / 2)) {
+                    // Collision Caught!
+                    if (item.hazard) {
+                        if (isFeverMode) {
+                            // Invincible in fever mode
+                            triggerParticles(item.x, item.y, '#f59e0b', 10);
+                            triggerFloatingText(item.x, item.y, 'BLOCKED! 🔥', '#f59e0b');
+                        } else {
+                            if (item.damage > 0) {
+                                lives -= item.damage;
+                                combo = 0;
+                                garfield.face = '🙀';
+                                sfx.playHitHazard();
+                                triggerParticles(item.x, item.y, '#ef4444', 16);
+                                triggerFloatingText(item.x, item.y, '-1 LIFE!', '#ef4444');
+                                updateHUD();
+
+                                if (lives <= 0) gameOver();
+                            } else {
+                                // Spoiled food deducts points
+                                score = Math.max(0, score + item.pts);
+                                combo = 0;
+                                garfield.face = '🤢';
+                                sfx.playHitHazard();
+                                triggerFloatingText(item.x, item.y, `${item.pts} Pts`, '#84cc16');
+                                updateHUD();
+                            }
+                        }
+                    } else {
+                        // Caught Reward
+                        combo++;
+                        let pointsGained = item.pts;
+                        if (isFeverMode) pointsGained *= 2; // Double points in fever
+
+                        score += pointsGained * (combo > 3 ? 2 : 1);
+                        garfield.face = '😋';
+
+                        if (item.type === 'lasagna') {
+                            sfx.playLasagnaPower();
+                            triggerParticles(item.x, item.y, '#f97316', 15);
+                            triggerFloatingText(item.x, item.y, `+${pointsGained} LASAGNA!`, '#f97316');
+
+                            if (!isFeverMode) {
+                                lasagnaGauge += item.lasagnaGain;
+                                if (lasagnaGauge >= 100) triggerLasagnaFever();
+                            }
+                        } else {
+                            sfx.playCatchMouse();
+                            triggerParticles(item.x, item.y, '#eab308', 10);
+                            triggerFloatingText(item.x, item.y, `+${pointsGained}`, '#eab308');
+                        }
+
+                        updateHUD();
+                        setTimeout(() => { if (gameState === 'PLAYING') garfield.face = '😸'; }, 350);
+                    }
+
+                    activeItems.splice(i, 1);
+                    continue;
+                }
+
+                // Off-screen cleanup
+                if (item.y > height + 40) {
+                    if (!item.hazard) combo = 0; // Reset combo if missed mouse
+                    updateHUD();
+                    activeItems.splice(i, 1);
+                }
+            }
+
+            // Particles Update
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= p.life;
+                if (p.alpha <= 0) particles.splice(i, 1);
+            }
+
+            // Floating Text Update
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.alpha -= 0.02;
+                if (ft.alpha <= 0) floatingTexts.splice(i, 1);
+            }
+        }
+
+        // --- DRAWING & RENDERING ---
+        function drawKitchenBackground() {
+            // Checkered background pattern
+            ctx.fillStyle = '#fef3c7';
+            ctx.fillRect(0, 0, width, height);
+
+            ctx.fillStyle = '#fde68a';
+            kitchenTiles.forEach((tile, index) => {
+                if ((Math.floor(tile.x / 40) + Math.floor(tile.y / 40)) % 2 === 0) {
+                    ctx.fillRect(tile.x, tile.y, 40, 40);
+                }
+            });
+
+            // Baseboard / Floor Line
+            ctx.fillStyle = '#b45309';
+            ctx.fillRect(0, height - 30, width, 30);
+            ctx.fillStyle = '#78350f';
+            ctx.fillRect(0, height - 30, width, 4);
+        }
+
+        function drawGarfield() {
+            ctx.save();
+            ctx.translate(garfield.x, garfield.y);
+            if (garfield.direction === -1) ctx.scale(-1, 1); // Flip horizontal when moving left
+
+            // Garfield Body (Orange Cartoon Cat)
+            ctx.fillStyle = '#f97316'; // Garfield Orange
+            ctx.strokeStyle = '#1e1b4b';
+            ctx.lineWidth = 3.5;
+
+            // Tail
+            ctx.beginPath();
+            ctx.ellipse(-30, 5, 18, 6, -Math.PI / 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Main Body Round Base
+            ctx.beginPath();
+            ctx.ellipse(0, 5, 28, 22, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Garfield Black Stripes
+            ctx.fillStyle = '#1e1b4b';
+            ctx.beginPath();
+            ctx.ellipse(-15, 0, 8, 2.5, 0.2, 0, Math.PI * 2);
+            ctx.ellipse(15, 0, 8, 2.5, -0.2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Head
+            ctx.fillStyle = '#f97316';
+            ctx.beginPath();
+            ctx.ellipse(0, -18, 26, 20, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Ears
+            ctx.beginPath();
+            ctx.moveTo(-18, -32);
+            ctx.lineTo(-10, -42);
+            ctx.lineTo(-4, -34);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(18, -32);
+            ctx.lineTo(10, -42);
+            ctx.lineTo(4, -34);
+            ctx.fill();
+            ctx.stroke();
+
+            // Big Garfield Cheeks / Muzzle
+            ctx.fillStyle = '#fef08a';
+            ctx.beginPath();
+            ctx.ellipse(-8, -12, 10, 8, 0, 0, Math.PI * 2);
+            ctx.ellipse(8, -12, 10, 8, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Nose
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.ellipse(0, -16, 4, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Whiskers
+            ctx.strokeStyle = '#1e1b4b';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(12, -12); ctx.lineTo(26, -15);
+            ctx.moveTo(12, -8); ctx.lineTo(26, -6);
+            ctx.moveTo(-12, -12); ctx.lineTo(-26, -15);
+            ctx.moveTo(-12, -8); ctx.lineTo(-26, -6);
+            ctx.stroke();
+
+            // Paws/Hands holding out
+            ctx.fillStyle = '#f97316';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(-18, 12, 8, 0, Math.PI * 2);
+            ctx.arc(18, 12, 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            // Facial expression overlay emoji
+            ctx.font = '20px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(garfield.face, 0, -22);
+
+            ctx.restore();
+        }
+
+        function drawItems() {
+            activeItems.forEach(item => {
+                ctx.save();
+                ctx.translate(item.x, item.y);
+                ctx.rotate(item.rotation);
+
+                ctx.font = `${item.size}px sans-serif`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(item.symbol, 0, 0);
+
+                ctx.restore();
+            });
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.alpha);
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+        }
+
+        function drawFloatingTexts() {
+            floatingTexts.forEach(ft => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, ft.alpha);
+                ctx.fillStyle = ft.color;
+                ctx.strokeStyle = '#1e1b4b';
+                ctx.lineWidth = 3;
+                ctx.font = 'bold 22px Bangers, cursive';
+                ctx.textAlign = 'center';
+                ctx.strokeText(ft.text, ft.x, ft.y);
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            });
+        }
+
+        // --- RENDER & GAME LOOP ---
+        function render() {
+            ctx.clearRect(0, 0, width, height);
+
+            drawKitchenBackground();
+            drawItems();
+            drawGarfield();
+            drawParticles();
+            drawFloatingTexts();
+        }
+
+        function gameLoop() {
+            update();
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        // --- LAUNCH ON LOAD ---
+        window.onload = function() {
+            resizeCanvas();
+            requestAnimationFrame(gameLoop);
+        };
+    </script>
+</body>
+</html>
